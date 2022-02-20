@@ -23,9 +23,9 @@ datasets
 │   └───class4
 |   ```
 ```
-### train model
+### Train model
 1. open BackBoneTest.ipynb
-2. choose backbone or right your own
+2. choose backbone or write your own
 3. make tfrecord of your dataset
 4. train embeddings model with your backbone
 5. make embeddings database with the embeddings model 
