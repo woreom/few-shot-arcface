@@ -54,6 +54,44 @@ class ArcLayer(keras.layers.Layer):
                        "kernel_regularizer": self.kernel_regularizer})
         return config
 
+    
+    
+def resnet101(input_shape, output_size, trainable=False, training=False,
+              kernel_regularizer=None, name="resnetv2"):
+    """This function returns a keras model of ResNet101.
+    Args:
+        input_shape: the shape of the inputs.
+        output_size: size of output nodes. This is considered as the size of the 
+            face embeddings.
+        trainable: True if the model is open for traning.
+    Returns:
+        a keras model.
+    """
+    base_model = keras.applications.ResNet101V2(
+        weights='imagenet',
+        input_shape=input_shape,
+        pooling=None,
+        include_top=False,)  # Do not include the ImageNet classifier at the top.
+
+    # Freeze the base_model
+    base_model.trainable = trainable
+
+    # Describe the model.
+    inputs = keras.Input(input_shape, dtype=tf.uint8)
+    x = tf.cast(inputs, tf.float32)
+    x = tf.keras.applications.resnet_v2.preprocess_input(x)
+    x = base_model(x, training=training)
+    x = keras.layers.BatchNormalization()(x)
+    x = keras.layers.Dropout(0.2)(x)  # Regularize with dropout
+    x = keras.layers.Flatten()(x)
+    x = keras.layers.Dense(output_size)(x)
+    outputs = keras.layers.BatchNormalization()(x)
+
+    # Construct the model and return it.
+    model = keras.Model(inputs=inputs, outputs=outputs,
+                        name=name, trainable=trainable)
+
+    return model
 
 def hrnet_stem(filters=64, kernel_regularizer=None):
     """The stem part of the network."""
