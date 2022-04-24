@@ -1,5 +1,5 @@
 # recognize-this
-image recognition model maker
+image recognition model maker, this repo is for making a robust embbeding and recognition model for any supervised image task 
 # How To Use
 ### Instalation
 ```
