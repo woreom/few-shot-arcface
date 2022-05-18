@@ -127,6 +127,44 @@ def hrnet_v2(input_shape, output_size, width=18, trainable=True,
     return model
 
 
+def resnet101(input_shape, output_size, trainable=False, training=False,
+              kernel_regularizer=None, name="resnetv2"):
+    """This function returns a keras model of ResNet101.
+    Args:
+        input_shape: the shape of the inputs.
+        output_size: size of output nodes. This is considered as the size of the 
+            face embeddings.
+        trainable: True if the model is open for traning.
+    Returns:
+        a keras model.
+    """
+    base_model = keras.applications.ResNet101V2(
+        weights='imagenet',
+        input_shape=input_shape,
+        pooling='avg',
+        include_top=False,)  # Do not include the ImageNet classifier at the top.
+
+    # Freeze the base_model
+    base_model.trainable = trainable
+
+    # Describe the model.
+    inputs = keras.Input(input_shape, dtype=tf.float32)
+    x = tf.cast(inputs, tf.float32)
+    x = tf.keras.applications.resnet_v2.preprocess_input(x)
+    x = base_model(x, training=training)
+    x = keras.layers.BatchNormalization()(x)
+    x = keras.layers.Dropout(0.2)(x)  # Regularize with dropout
+    x = keras.layers.Flatten()(x)
+    x = keras.layers.Dense(output_size)(x)
+    outputs = keras.layers.BatchNormalization()(x)
+
+    # Construct the model and return it.
+    model = keras.Model(inputs=inputs, outputs=outputs,
+                        name=name, trainable=trainable)
+
+    return model
+
+
 if __name__ == "__main__":
     net = hrnet_v2((112, 112, 3), 256)
     x = tf.random.uniform((8, 112, 112, 3))
