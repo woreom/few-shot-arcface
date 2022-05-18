@@ -1,46 +1,35 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[1]:
+# In[2]:
 
 
 import os
-import cv2
-import pickle
-import numpy as np
-
-from sklearn.neural_network import MLPClassifier
-from sklearn.model_selection import KFold, train_test_split
-
-
-from tensorflow import keras
-import tensorflow as tf
-
-from arcface.dataset import build_dataset
-from arcface.losses import ArcLoss
-from arcface.network import ArcLayer, L2Normalization, hrnet_v2, resnet101
-from arcface.training_supervisor import TrainingSupervisor
-
-from tensorflow.keras.applications.efficientnet import EfficientNetB3
-
-import IPython.display as display
-from glob import glob
-from tqdm import tqdm
 from abc import ABC, abstractmethod
 
 
-# # TODO
-# 
-# 
-# 1. hrnet (Done)
-# 2. resnet ()
-# 3. efficienthrnet
-# 4. efficientnet
-# 
+import cv2
+import pickle
+import numpy as np
+from glob import glob
+from tqdm import tqdm
+import IPython.display as display
+
+
+import tensorflow as tf
+from tensorflow import keras
+from sklearn.neural_network import MLPClassifier
+from sklearn.model_selection import KFold, train_test_split
+from tensorflow.keras.applications.efficientnet import EfficientNetB3
+
+
+from arcface.losses import ArcLoss
+from arcface.dataset import build_dataset
+from arcface.training_supervisor import TrainingSupervisor
+from arcface.network import ArcLayer, L2Normalization, hrnet_v2
+
 
 # ### TFRecord
-
-# In[2]:
 
 
 def image_feature(value):
@@ -48,6 +37,7 @@ def image_feature(value):
     return tf.train.Feature(
         bytes_list=tf.train.BytesList(value=[tf.io.encode_jpeg(value).numpy()])
     )
+
 
 def bytes_feature(value):
     """Returns a bytes_list from a string / byte."""
@@ -68,12 +58,14 @@ def float_feature_list(value):
     """Returns a list of float_list from a float / double."""
     return tf.train.Feature(float_list=tf.train.FloatList(value=value))
 
+
 def create_example(image, label):
     feature = {
         "image": image_feature(image),
         "label": bytes_feature(label),
     }
     return tf.train.Example(features=tf.train.Features(feature=feature))
+
 
 ### Backbone Class make (ToDo Make into a separate module)############################
 class RecordOperator(ABC):
@@ -122,6 +114,7 @@ class RecordOperator(ABC):
         parsed_dataset = self.dataset.map(_parse_function)
         return parsed_dataset
 #########################################################################################
+
 
 class ImageDataset(RecordOperator):
     """Construct ImageDataset tfrecord files."""
@@ -186,16 +179,7 @@ def create_tfrecord(path = 'datasets/sorted_palmvein_roi/',  types=[".bmp"], tf_
     print("All done. Record file is:\n{}".format(tf_record))
 
 
-# In[10]:
-
-
-name='merge'
-create_tfrecord(path= 'datasets/processed_merge/', types=['png','jpg','jepg','png', 'bmp'], tf_record='datasets/'+name+'_processed.record')
-
-
 # # Training
-
-# In[3]:
 
 
 def train(base_model, name = "hrnetv2", train_files = "datasets/train.record", test_files = None, val_files = None, input_shape = (128, 128, 3),
@@ -270,13 +254,10 @@ def train(base_model, name = "hrnetv2", train_files = "datasets/train.record", t
     optimizer = keras.optimizers.Adam(adam_alpha, amsgrad=True, epsilon=adam_epsilon)
 
     # Construct training datasets.
-    dataset_train, dataset_val, test_dataset  = build_dataset(train_files,
+    dataset_train = build_dataset(train_files,
                                   batch_size=batch_size,
                                   one_hot_depth=num_ids,
                                   training=True,
-                                  val_size = 0.0,
-                                  test_size = 0.0,
-                                  num_examples = 12000,
                                   buffer_size=4096)
 
     # Construct dataset for validation. The loss value from this dataset can be
@@ -322,60 +303,19 @@ def train(base_model, name = "hrnetv2", train_files = "datasets/train.record", t
 
     # Export the model after training.
     supervisor.export(base_model, export_dir)
-
-
-# In[5]:
-
-
-# First model is bexported/e model which outputs the face embeddings.
-input_shape = (128, 128, 3)
-embedding_size = 512
-regularizer = keras.regularizers.L2(5e-4)
-base_model = resnet101(input_shape=input_shape, output_size=embedding_size,
-                           trainable=True, training=True,
-                           kernel_regularizer=regularizer,
-                           name="embedding_model")
-
-name='merge'
-train(base_model, name = name+"_soft", train_files = "datasets/"+name+"_processed.record", test_files = None, val_files = None, input_shape = (128, 128, 3),
-          num_ids = 1144, num_examples = 30942, training_dir = 'outputs/',
-          frequency = 1000, softmax = True, adam_alpha=0.001, adam_epsilon=0.001, batch_size = 8, export_only = False,
-          override = False, epochs = 12, restore_weights_only=True)
-
-
-# # Load softmax model and train with softmax = False
-
-# In[9]:
-
-
-checkpoint_dir = 'outputs/exported/processed_soft/'
-num_ids = 600
-regularizer = keras.regularizers.L2(5e-4)
-
-base_model = keras.models.load_model(checkpoint_dir)
-
-
-name='merge'
-train(base_model, name = name+"_arc", train_files = "datasets/"+name+"_processed.record", test_files = None, val_files = None, input_shape = (128, 128, 3),
-          num_ids = 1144, num_examples = 30942, training_dir = 'outputs/',
-          frequency = 1000, softmax = False, adam_alpha=0.001, adam_epsilon=0.001, batch_size = 8, export_only = False,
-          override = False, epochs = 12, restore_weights_only=True)
-
-
-# # Classifier
-
-# In[24]:
-
+    
 
 def save_pkl(pkl, path = 'model.pkl'):
     with open(path, 'wb') as f:
         pickle.dump(pkl, f)
     print("saved pkl file at:",path)
+    
 
 def load_pkl(path='model.pkl'):
     with open(path, 'rb') as f:
         pkl = pickle.load(f)
     return pkl
+
 
 def findCosineDistance(vector1, vector2):
     """
@@ -389,6 +329,7 @@ def findCosineDistance(vector1, vector2):
     c = np.dot(vec2.T, vec2)
     return 1 - (a/(np.sqrt(b)*np.sqrt(c)))
 
+
 def cosine_similarity(test_vec, source_vecs):
     """
     Verify the similarity of one vector to group vectors of one class
@@ -397,6 +338,7 @@ def cosine_similarity(test_vec, source_vecs):
     for source_vec in source_vecs:
         cos_dist += findCosineDistance(test_vec, source_vec)
     return cos_dist/len(source_vecs)
+
 
 def make_embeddings(dataset_path='datasets/sorted_palmvein_roi/', output_path='outputs/', model_dir='outputs/exported/arcface', types='bmp'):
     # Grab the paths to the input images in our dataset
@@ -437,6 +379,7 @@ def make_embeddings(dataset_path='datasets/sorted_palmvein_roi/', output_path='o
     data = {"embeddings": knownEmbeddings, "names": knownNames}
     save_pkl(pkl=data, path=output_path+'db.pkl')
     
+    
 def make_model(embeddings_path='outputs/db.pkl', output_path='outputs/'):
     # Load the face embeddings
     data = load_pkl(embeddings_path)
@@ -461,43 +404,76 @@ def make_model(embeddings_path='outputs/db.pkl', output_path='outputs/'):
     return model
 
 
-# In[25]:
+if __name__ == '__main__':
+    
+    name='merge'
+    
+    input_shape = (128, 128, 3)
+    embedding_size = 512
+    num_ids = 1144
+    num_examples = 30942
+    batch_size = 64
+    epochs = 12
+    dataset_path = 'datasets/processed_merge'
+    
+    checkpoint_dir = 'outputs/exported/'+ name +'_soft/'
+    
+    # create_tfrecord(path= dataset_path,
+    #                 types=['png','jpg','jepg','png', 'bmp'],
+    #                 tf_record='datasets/'+name+'_processed.record')
+    
+    # First model is bexported/e model which outputs the face embeddings.
+
+    regularizer = keras.regularizers.L2(5e-4)
+    base_model = hrnet_v2(input_shape=input_shape,
+                          output_size=embedding_size,
+                          trainable=True,
+                          kernel_regularizer=regularizer,
+                          name="embedding_model")
+
+    train(base_model, name = name+"_soft", train_files = "datasets/"+name+"_processed.record", test_files = None, val_files = None, input_shape = (128, 128, 3),
+              num_ids = num_ids, num_examples = num_examples, training_dir = 'outputs/',
+              frequency = 1000, softmax = True, adam_alpha=0.001, adam_epsilon=0.001, batch_size = batch_size, export_only = False,
+              override = False, epochs = epochs, restore_weights_only=True)
 
 
-make_embeddings(dataset_path='datasets/processed_merge/', output_path='outputs/exported/'+name+'_arc/', model_dir='outputs/exported/'+name+'_arc/',types=['png','jpg','jepg','png', 'bmp'])
+    # # Load softmax model and train with softmax = False
+
+    
+    regularizer = keras.regularizers.L2(5e-4)
+    base_model = keras.models.load_model(checkpoint_dir)
+    
+
+    train(base_model, name = name+"_arc", train_files = "datasets/"+name+"_processed.record", test_files = None, val_files = None, input_shape = (128, 128, 3),
+              num_ids = num_ids, num_examples = num_examples, training_dir = 'outputs/',
+              frequency = 1000, softmax = False, adam_alpha=0.001, adam_epsilon=0.001, batch_size = batch_size, export_only = False,
+              override = False, epochs = epochs, restore_weights_only=True)
 
 
-# In[26]:
+    # # Classifier
+
+    make_embeddings(dataset_path= dataset_path, output_path='outputs/exported/'+name+'_arc/',
+                    model_dir='outputs/exported/'+name+'_arc/',types=['jpg','jepg','png', 'bmp'])
 
 
-make_model(embeddings_path='outputs/exported/'+name+'_arc/db.pkl', output_path='outputs/exported/'+name+'_arc/')
+    make_model(embeddings_path='outputs/exported/'+name+'_arc/db.pkl', output_path='outputs/exported/'+name+'_arc/')
 
 
-# In[29]:
+    embedding_model = keras.models.load_model('outputs/exported/'+name+'_arc/')
+    model = load_pkl('outputs/exported/'+name+'_arc/model.pkl')
+    samples = glob('datasets/processed_merge/*/*.jpg')
 
 
-embedding_model = keras.models.load_model('outputs/exported/'+name+'_arc/')
-model = load_pkl('outputs/exported/'+name+'_arc/model.pkl')
-samples = glob('datasets/processed_merge/*/*.jpg')
+    # In[36]:
 
 
-# In[36]:
+    img_paths = samples[0:11]
+    imgs = [cv2.imread(img).reshape(-1, 128, 128, 3) for img in img_paths]
+    embedding = [embedding_model.predict(img)[0] for img in imgs]
 
-
-img_paths = samples[0:11]
-imgs = [cv2.imread(img).reshape(-1, 128, 128, 3) for img in img_paths]
-embedding = [embedding_model.predict(img)[0] for img in imgs]
-
-[print(np.format_float_positional((cosine_similarity(i, embedding[:11])), precision=3), end='\t') for i in embedding]
-print()
-[print(i, end='\t') for i in model.predict(embedding)]
-print()
-[print(img.split("/")[-2], end='\t') for img in img_paths] 
-print()
-
-
-# In[ ]:
-
-
-
-
+    [print(np.format_float_positional((cosine_similarity(i, embedding[:11])), precision=3), end='\t') for i in embedding]
+    print()
+    [print(i, end='\t') for i in model.predict(embedding)]
+    print()
+    [print(img.split("/")[-2], end='\t') for img in img_paths] 
+    print()

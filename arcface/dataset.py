@@ -3,16 +3,12 @@ and testing data."""
 
 import tensorflow as tf
 from arcface.preprocessing import normalize
-from sklearn.model_selection import train_test_split
 
 
 def build_dataset(tfrecord_file,
                   batch_size,
                   one_hot_depth,
                   training=False,
-                  val_size = 0.0,
-                  test_size = 0.0,
-                  num_examples = 12000,
                   buffer_size=4096):
     """Generate parsed TensorFlow dataset.
 
@@ -44,23 +40,11 @@ def build_dataset(tfrecord_file,
     def _parse_function(example):
         features = tf.io.parse_single_example(example, feature_description)
         image = tf.image.decode_jpeg(features['image/encoded'])
-        
-        # random flip
-        image = tf.image.random_flip_left_right(image)
-        image = tf.image.random_flip_up_down(image)
-        # random rotation
-        image = tf.image.rot90(image, tf.random.uniform(shape=[], minval=0, maxval=4, dtype=tf.int32))
-        
         image = normalize(image)
-        
-
-        
-        
         label = tf.one_hot(features['label'], depth=one_hot_depth,
                            dtype=tf.float32)
 
         return image, label
-    
 
     # Now construct the dataset from tfrecord file and make it indefinite.
     dataset = tf.data.TFRecordDataset(tfrecord_file)
@@ -77,24 +61,5 @@ def build_dataset(tfrecord_file,
 
     # Prefetch the data to accelerate the pipeline.
     dataset = dataset.prefetch(autotune)
-    
-    if training:
-        if test_size != 0.0:
-            test_size = int(test_size * num_examples)
 
-            test_dataset = dataset.take(test_size)
-            dataset = dataset.skip(test_size)
-        else:
-            test_dataset = None
-
-        if test_size != 0.0:
-            val_size = int(val_size * (num_examples-test_size))
-
-            val_dataset = dataset.take(val_size)
-            dataset = dataset.skip(test_size)
-        else:
-            val_dataset=None
-
-        return dataset, val_dataset ,test_dataset
-    
     return dataset
