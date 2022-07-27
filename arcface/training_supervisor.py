@@ -9,7 +9,7 @@ from tqdm import tqdm
 class TrainingSupervisor(object):
     """A training supervisor will organize and monitor the training process."""
 
-    def __init__(self, model, optimizer, loss, dataset, training_dir, save_freq, monitor, mode, name) -> None:
+    def __init__(self, model, optimizer, loss, dataset, training_dir, save_freq, monitor, mode, name, val_dataset=None, val_freq=None) -> None:
         """Training supervisor organizes and monitors the training process.
 
         Args:
@@ -31,6 +31,11 @@ class TrainingSupervisor(object):
         self.loss_fun = loss
         self.dataset = dataset
         self.data_generator = iter(self.dataset)
+        
+        self.val_dataset = val_dataset
+        self.val_data_generator = iter(self.val_dataset) if self.val_dataset!=None else None
+        self.val_freq = val_freq
+
         self.save_freq = save_freq
         self.metrics = {
             'categorical_accuracy': tf.keras.metrics.CategoricalAccuracy(
@@ -213,8 +218,60 @@ class TrainingSupervisor(object):
         ckpt_path = self.manager.save()
         print("Checkpoint saved at global step: {}, to file: {}".format(
             int(self.schedule['step']), ckpt_path))
+    
+    
+    def _val_step(self, x_batch, y_batch):
+        
+        """Define the training step function.
 
-    def train(self, epochs, steps_per_epoch):
+        Args:
+            x_batch: the inputs of the network.
+            y_batch: the labels of the batched inputs.
+
+        Returns:
+            logtis and loss.
+        """
+
+        with tf.GradientTape() as tape:
+            # Run the forward propagation.
+            logits = self.model(x_batch, training=False)
+
+            # Calculate the loss value from targets and regularization.
+            loss = self.loss_fun(y_batch, logits) + sum(self.model.losses)
+
+        return logits, loss
+    
+    def validation(self, epoch, epochs, steps_per_epoch):
+        # Log current epoch.
+        print("\nValidating Epoch {}/{} ...".format(epoch, epochs))
+
+        # Visualize the training progress.
+        progress_bar = tqdm(total=steps_per_epoch, initial=0,
+                            ascii="->", colour='#1cd41c')
+        # Iterate over the batches of the dataset
+        for x_batch, y_batch in self.val_data_generator:
+
+            # Train for one step.
+            logits, loss = self._val_step(x_batch, y_batch)
+
+            # Update the metrics.
+            self._update_metrics(y_batch, logits, loss)
+
+            # Update the progress bar.
+            progress_bar.update(1)
+            progress_bar.set_postfix({
+                "loss": "{:.2f}".format(loss.numpy()),
+                "accuracy": "{:.3f}".format(
+                    self.metrics['categorical_accuracy'].result().numpy())})
+            
+        # Reset the training dataset.
+        self.val_data_generator = iter(self.val_dataset)
+
+        # Clean up the progress bar.
+        progress_bar.close()
+        
+
+    def train(self, epochs, steps_per_epoch, val_steps_per_epoch):
         """Train the model for epochs.
 
         Args:
@@ -262,6 +319,8 @@ class TrainingSupervisor(object):
                 if int(self.schedule['step']) % self.save_freq == 0:
                     self._log_to_tensorboard()
                     self._checkpoint()
+            
+            
 
             # Update the checkpoint epoch counter.
             self.schedule['epoch'].assign_add(1)
